@@ -74,7 +74,7 @@ jobs:
       #    --no-rich-output pour des logs lisibles dans GitHub Actions.
       - name: Build APK
         run: |
-          flet build apk \
+          echo "y" | flet build apk \
             --verbose \
             --no-rich-output \
             --build-number ${{ github.run_number }} \
