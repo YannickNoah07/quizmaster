@@ -1,0 +1,26 @@
+[project]
+name = "quizmaster"
+version = "1.0.0"
+description = "QuizMaster – L'Arène du Savoir"
+requires-python = ">=3.10"
+# IMPORTANT : on ne met QUE flet ici.
+# requests n'a pas de wheel Android natif et ferait échouer flet build apk.
+# On utilise urllib (natif Python) à la place pour les appels réseau.
+dependencies = [
+    "flet>=0.21.0",
+]
+
+[tool.flet]
+org         = "com.quizmaster"
+product     = "QuizMaster"
+company     = "Groupe QuizMaster"
+description = "L'Arène du Savoir – Quiz mobile Python/Flet"
+
+[tool.flet.app]
+# Flet cherche main.py par défaut — pas besoin de le préciser
+# mais on le force pour éviter toute ambiguïté
+module = "main"
+
+[tool.flet.android]
+# Permissions réseau obligatoires pour appeler l'API Open Trivia DB
+permissions = { INTERNET = true, ACCESS_NETWORK_STATE = true }
