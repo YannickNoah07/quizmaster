@@ -1,10 +1,10 @@
 # QuizMaster - L'Arene du Savoir
-# Version Flet (Python desktop / mobile)
+# Version Flet optimisée pour Android
 
-# ── Vérification des dépendances AVANT tout import ─────────────────────────────
 import sys
-import subprocess
+import os
 
+# ── Vérification des dépendances ──────────────────────────────────────────────
 def _check_dep(package: str, import_name: str = None) -> bool:
     name = import_name or package
     try:
@@ -13,41 +13,36 @@ def _check_dep(package: str, import_name: str = None) -> bool:
     except ImportError:
         return False
 
-_missing = []
 if not _check_dep("flet"):
-    _missing.append("flet")
-
-if _missing:
-    print("=" * 60)
-    print("  DÉPENDANCES MANQUANTES — QuizMaster ne peut pas démarrer")
-    print("=" * 60)
-    for pkg in _missing:
-        print(f"  ✗  {pkg}  →  pip install {pkg}")
-    print("\n  Lance cette commande et relance le programme :")
-    print(f"  pip install {' '.join(_missing)}")
-    print("=" * 60)
+    print("La dépendance 'flet' est requise.")
     sys.exit(1)
 
 # ── Imports standards ───────────────────────────────────────────────────────────
 import html
 import json
-import os
 import random
 import threading
 import time
 import urllib.request
 import urllib.parse
 import urllib.error
+import ssl
 from datetime import datetime
 
 import flet as ft
+
+# ── Contexte SSL non vérifié pour éviter le crash CERTIFICATE_VERIFY_FAILED ──
+try:
+    _ssl_context = ssl._create_unverified_context()
+except AttributeError:
+    _ssl_context = None
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  CONSTANTES & PALETTE
 # ══════════════════════════════════════════════════════════════════════════════
 TIMER_TOTAL   = 10
 QUESTIONS_NB  = 10
-HISTORY_FILE  = None  # Sera défini dans main() après avoir accès à page.app_data_dir
+HISTORY_FILE  = None
 
 C_BG      = "#0D0D1A"
 C_CARD    = "#181830"
@@ -109,28 +104,34 @@ def save_game(player: str, score: int, total: int,
         "date":       datetime.now().strftime("%d/%m/%Y %H:%M"),
     })
     history = history[:50]
-    os.makedirs(os.path.dirname(HISTORY_FILE), exist_ok=True)
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(history, f, indent=2, ensure_ascii=False)
+    try:
+        os.makedirs(os.path.dirname(HISTORY_FILE), exist_ok=True)
+        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(history, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
 
 
 def get_best_score() -> tuple:
     history = load_history()
     if not history:
         return 0, 0
-    best = max(history, key=lambda x: x["pct"])
-    return best["score"], best["total"]
+    try:
+        best = max(history, key=lambda x: x["pct"])
+        return best["score"], best["total"]
+    except Exception:
+        return 0, 0
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  API OPEN TRIVIA DB + TRADUCTION
-# ══════════════════════════════════════════════════════════════════════════════
+#  API OPEN TRIVIA DB + TRADUCTION (SÉCURISÉE AVEC CONTEXTE SSL)
+# ═══════════════════════════════════════════════════════════════════════════
 def translate_text(text: str) -> str:
     try:
         params = urllib.parse.urlencode({"q": text, "langpair": "en|fr"})
         url = f"https://api.mymemory.translated.net/get?{params}"
         req = urllib.request.Request(url, headers={"User-Agent": "QuizMaster/1.0"})
-        with urllib.request.urlopen(req, timeout=5) as r:
+        with urllib.request.urlopen(req, timeout=5, context=_ssl_context) as r:
             data = json.loads(r.read().decode())
         t = data["responseData"]["translatedText"]
         return t if t and len(t) > 2 else text
@@ -148,11 +149,11 @@ def fetch_questions(category_id: int, difficulty: str, amount: int = QUESTIONS_N
     url = f"https://opentdb.com/api.php?{params}"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "QuizMaster/1.0"})
-        with urllib.request.urlopen(req, timeout=10) as r:
+        with urllib.request.urlopen(req, timeout=10, context=_ssl_context) as r:
             data = json.loads(r.read().decode())
 
         if data.get("response_code") == 1:
-            return None, "Pas assez de questions pour cette catégorie.\nEssaie 'Général'."
+            return None, "Pas assez de questions.\nEssaie la catégorie 'Général'."
         if data.get("response_code") == 5:
             return None, "Trop de requêtes. Attends quelques secondes."
         if data.get("response_code") != 0:
@@ -179,14 +180,8 @@ def fetch_questions(category_id: int, difficulty: str, amount: int = QUESTIONS_N
             translated.append(q)
         return translated, None
 
-    except urllib.error.URLError as e:
-        if "timed out" in str(e).lower():
-            return None, "Délai dépassé (10s).\nRéessaie dans un instant."
-        return None, "Pas de connexion internet.\nVérifie ton WiFi/données."
-    except OSError:
-        return None, "Pas de connexion internet.\nVérifie ton WiFi/données."
     except Exception as e:
-        return None, f"Erreur inattendue :\n{e}"
+        return None, "Problème de connexion internet\nou échec de la requête."
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -220,23 +215,6 @@ def card(content, padding=16, radius=16, bg=C_CARD) -> ft.Container:
         bgcolor=bg,
         border_radius=radius,
         padding=padding,
-    )
-
-
-def answer_btn(text: str, color: str, on_click) -> ft.ElevatedButton:
-    return ft.ElevatedButton(
-        text=text,
-        on_click=on_click,
-        width=999,
-        height=58,
-        style=ft.ButtonStyle(
-            bgcolor={"": color},
-            color={"": C_WHITE},
-            shape={"": ft.RoundedRectangleBorder(radius=14)},
-            text_style=ft.TextStyle(size=14, weight=ft.FontWeight.BOLD),
-            elevation={"": 2},
-            overlay_color={"hovered": ft.Colors.with_opacity(0.15, C_WHITE)},
-        ),
     )
 
 
@@ -276,43 +254,36 @@ def ghost_btn(text: str, on_click, height=46) -> ft.ElevatedButton:
 #  APPLICATION PRINCIPALE
 # ══════════════════════════════════════════════════════════════════════════════
 def main(page: ft.Page):
-    # ── Écran de démarrage immédiat ──────────────────────────────────────────
-    page.bgcolor = "#000000"
-    page.add(ft.Text("⚡ QuizMaster démarre...", color="white", size=20))
-    page.update()
-
-    # ── Configuration de la fenêtre ──────────────────────────────────────────
+    # ── Configuration initiale de la page ─────────────────────────────────────
     page.title        = "QuizMaster – L'Arène du Savoir"
     page.bgcolor      = C_BG
-    try:
-        page.window.width     = 400
-        page.window.height    = 800
-        page.window.resizable = True
-    except Exception:
-        pass
-    page.fonts = {}
     page.theme_mode   = ft.ThemeMode.DARK
     page.padding      = 0
 
-    # ── Chemin historique compatible Android ────────────────────────────────
+    # ── Chemin historique compatible Android ──────────────────────────────────
     global HISTORY_FILE
     try:
-        data_dir = page.app_data_dir
-        if not data_dir:
-            data_dir = os.path.dirname(os.path.abspath(__file__))
+        data_dir = page.app_data_dir or os.path.dirname(os.path.abspath(__file__))
     except Exception:
         data_dir = os.path.dirname(os.path.abspath(__file__))
+    
     try:
         os.makedirs(os.path.join(data_dir, "data"), exist_ok=True)
+        HISTORY_FILE = os.path.join(data_dir, "data", "history.json")
     except Exception:
-        pass
-    HISTORY_FILE = os.path.join(data_dir, "data", "history.json")
+        HISTORY_FILE = None
 
     gs = GameState()
 
-    # ── Navigation ───────────────────────────────────────────────────────────
+    # Variable pour suivre l'activité du timer et éviter les fuites de threads
+    quiz_context = {"active": False}
+
+    # ── Navigation sécurisée pour éviter le crash page.views.clear() ──────────
     def go(screen_name: str):
-        page.views.clear()
+        # On désactive le timer du quiz si on change d'écran
+        if screen_name != "quiz":
+            quiz_context["active"] = False
+
         builders = {
             "home":     build_home,
             "config":   build_config,
@@ -322,11 +293,8 @@ def main(page: ft.Page):
             "history":  build_history,
         }
         if screen_name in builders:
-            page.views.append(builders[screen_name]())
-            page.update()
-        else:
-            page.snack_bar = ft.SnackBar(ft.Text(f"Écran inconnu : {screen_name}"))
-            page.snack_bar.open = True
+            # Affectation atomique pour éviter une pile vide durant l'update()
+            page.views[:] = [builders[screen_name]()]
             page.update()
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -346,7 +314,7 @@ def main(page: ft.Page):
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=16,
                     controls=[
-                        ft.Container(height=16),
+                        ft.Container(height=24),
                         card(
                             ft.Column(
                                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -490,18 +458,18 @@ def main(page: ft.Page):
     # ══════════════════════════════════════════════════════════════════════════
     def build_loading() -> ft.View:
         pb     = ft.ProgressBar(width=280, color=C_GOLD, bgcolor=C_CARD2, value=0)
-        status = ft.Text("⚡ Chargement & traduction\ndes questions...",
+        status = ft.Text("⚡ Préparation de l'arène...",
                          size=17, color=C_GOLD, weight=ft.FontWeight.BOLD,
                          text_align=ft.TextAlign.CENTER)
 
         def _load():
-            for v in range(0, 85, 3):
+            for v in range(0, 50, 5):
                 pb.value = v / 100
                 try:
                     page.update()
                 except Exception:
                     return
-                time.sleep(0.04)
+                time.sleep(0.03)
 
             questions, err = fetch_questions(gs.category_id, gs.difficulty)
 
@@ -510,7 +478,7 @@ def main(page: ft.Page):
                 page.update()
             except Exception:
                 return
-            time.sleep(0.3)
+            time.sleep(0.2)
 
             if err:
                 status.value = f"❌ {err}"
@@ -518,7 +486,7 @@ def main(page: ft.Page):
                     page.update()
                 except Exception:
                     return
-                time.sleep(3)
+                time.sleep(3.0)
                 go("home")
             else:
                 gs.questions  = questions
@@ -566,9 +534,12 @@ def main(page: ft.Page):
         feedback_txt = ft.Ref[ft.Text]()
 
         _btn_refs = [ft.Ref[ft.ElevatedButton]() for _ in range(4)]
-        _state = {"answered": False, "timer_event": None, "timer_val": TIMER_TOTAL}
+        _state = {"answered": False, "timer_val": TIMER_TOTAL}
+        quiz_context["active"] = True
 
         def load_question():
+            if not quiz_context["active"]:
+                return
             _state["answered"] = False
             idx = gs.q_index
             q   = gs.questions[idx]
@@ -595,7 +566,6 @@ def main(page: ft.Page):
                 ref.current.disabled = False
                 ref.current.style.bgcolor = {"": ANSWER_COLORS[i]}
 
-            _stop_timer()
             _state["timer_val"] = TIMER_TOTAL
             lbl_timer.current.value = str(TIMER_TOTAL)
             lbl_timer.current.color = C_GREEN
@@ -609,8 +579,10 @@ def main(page: ft.Page):
 
         def _start_timer():
             def _tick():
-                while _state["timer_val"] > 0 and not _state["answered"]:
-                    time.sleep(1)
+                while _state["timer_val"] > 0 and not _state["answered"] and quiz_context["active"]:
+                    time.sleep(1.0)
+                    if not quiz_context["active"] or _state["answered"]:
+                        return
                     _state["timer_val"] -= 1
                     v = _state["timer_val"]
                     ratio = v / TIMER_TOTAL
@@ -625,15 +597,11 @@ def main(page: ft.Page):
                         page.update()
                     except Exception:
                         return
-                if not _state["answered"]:
+                if not _state["answered"] and quiz_context["active"]:
                     _time_up()
 
             t = threading.Thread(target=_tick, daemon=True)
-            _state["timer_event"] = t
             t.start()
-
-        def _stop_timer():
-            _state["answered"] = True
 
         def _time_up():
             _state["answered"] = True
@@ -691,6 +659,8 @@ def main(page: ft.Page):
                 ref.current.disabled = True
 
         def _next_question():
+            if not quiz_context["active"]:
+                return
             mode  = gs.mode
             idx   = gs.q_index
             total = len(gs.questions)
@@ -707,6 +677,7 @@ def main(page: ft.Page):
                     load_question()
 
         def _finish():
+            quiz_context["active"] = False
             mode = gs.mode
             save_game(gs.p1_name, gs.p1_score, len(gs.questions),
                       gs.category_name, gs.difficulty_name,
@@ -818,7 +789,7 @@ def main(page: ft.Page):
         )
 
         page.on_view_pop = lambda _: None
-        threading.Thread(target=lambda: (time.sleep(0.1), load_question()),
+        threading.Thread(target=lambda: (time.sleep(0.15), load_question()),
                          daemon=True).start()
         return view
 
@@ -876,7 +847,7 @@ def main(page: ft.Page):
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=16,
                     controls=[
-                        ft.Container(height=16),
+                        ft.Container(height=24),
                         ft.Text(title, size=28, weight=ft.FontWeight.BOLD,
                                 color=title_color, text_align=ft.TextAlign.CENTER),
                         ft.Row(
@@ -912,8 +883,9 @@ def main(page: ft.Page):
         else:
             rows = []
             for entry in history:
-                clr = (C_GREEN  if entry["pct"] >= 80 else
-                       C_ORANGE if entry["pct"] >= 50 else C_RED)
+                pct = entry.get("pct", 0)
+                clr = (C_GREEN  if pct >= 80 else
+                       C_ORANGE if pct >= 50 else C_RED)
                 rows.append(
                     card(
                         ft.Row(
@@ -942,7 +914,7 @@ def main(page: ft.Page):
                                         ft.Text(f"{entry['score']}/{entry['total']}",
                                                 size=15, weight=ft.FontWeight.BOLD,
                                                 color=clr),
-                                        ft.Text(f"{entry['pct']}%",
+                                        ft.Text(f"{pct}%",
                                                 size=11, color=C_MUTED),
                                     ],
                                 ),
@@ -984,7 +956,7 @@ def main(page: ft.Page):
             ],
         )
 
-    # ── Démarrage sur l'écran Accueil ────────────────────────────────────────
+    # ── Démarrage direct sur l'écran Accueil ──────────────────────────────────
     go("home")
 
 
@@ -994,5 +966,4 @@ def main(page: ft.Page):
 if __name__ == "__main__":
     ft.app(target=main)
 else:
-    # Android (serious_python) : module importé, pas exécuté directement
     ft.app(target=main)
