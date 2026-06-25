@@ -28,9 +28,6 @@ jobs:
       - name: Install Flet
         run: pip install flet
 
-      - name: Accept Android licenses
-        run: yes | flutter doctor --android-licenses || true
-
       - name: Git config
         run: |
           git config --global user.email "ci@github.com"
@@ -38,6 +35,7 @@ jobs:
 
       - name: Build APK
         run: |
+          yes | sdkmanager --licenses || true
           echo "y" | flet build apk \
             --verbose \
             --no-rich-output \
