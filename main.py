@@ -302,6 +302,11 @@ def ghost_btn(text: str, on_click, height=46) -> ft.ElevatedButton:
 #  APPLICATION PRINCIPALE
 # ══════════════════════════════════════════════════════════════════════════════
 def main(page: ft.Page):
+    # ── Écran de démarrage immédiat ──────────────────────────────────────────
+    page.bgcolor = "#000000"
+    page.add(ft.Text("⚡ QuizMaster démarre...", color="white", size=20))
+    page.update()
+
     # ── Configuration de la fenêtre ──────────────────────────────────────────
     page.title        = "QuizMaster – L'Arène du Savoir"
     page.bgcolor      = C_BG
@@ -1033,3 +1038,4 @@ if __name__ == "__main__":
         print(f"\n[ERREUR FATALE] {e}")
         print("Vérifie que Flet est bien installé : pip install flet")
         sys.exit(1)
+
