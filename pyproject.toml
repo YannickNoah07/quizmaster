@@ -18,5 +18,5 @@ module = "main"
 
 [tool.flet.android]
 permissions = { INTERNET = true, ACCESS_NETWORK_STATE = true }
-min_sdk_version = 23
+min_sdk_version = 24
 target_sdk_version = 33
