@@ -1038,4 +1038,3 @@ if __name__ == "__main__":
         print(f"\n[ERREUR FATALE] {e}")
         print("Vérifie que Flet est bien installé : pip install flet")
         sys.exit(1)
-
