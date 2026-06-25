@@ -1,4 +1,4 @@
-"""
+ """
 ╔══════════════════════════════════════════════════════════════╗
 ║         QuizMaster – L'Arène du Savoir                      ║
 ║         Version Flet (Python desktop / mobile web)          ║
@@ -310,9 +310,13 @@ def main(page: ft.Page):
     # ── Configuration de la fenêtre ──────────────────────────────────────────
     page.title        = "QuizMaster – L'Arène du Savoir"
     page.bgcolor      = C_BG
-    page.window_width  = 400
-    page.window_height = 800
-    page.window_resizable = True
+    # Dimensions fenêtre — ignorées sur Android (mobile gère nativement)
+    try:
+        page.window.width     = 400
+        page.window.height    = 800
+        page.window.resizable = True
+    except Exception:
+        pass
     page.fonts = {}  # Flet gère les emojis nativement — aucune police spéciale nécessaire
     page.theme_mode   = ft.ThemeMode.DARK
     page.padding      = 0
