@@ -49,7 +49,6 @@ TIMER_TOTAL   = 10
 QUESTIONS_NB  = 10
 HISTORY_FILE  = None  # Sera défini dans main() après avoir accès à page.app_data_dir
 
-# Couleurs (format hex pour Flet)
 C_BG      = "#0D0D1A"
 C_CARD    = "#181830"
 C_CARD2   = "#1E1E3A"
@@ -64,10 +63,8 @@ C_TEXT    = "#F2F2FF"
 C_MUTED   = "#8080A6"
 C_WHITE   = "#FFFFFF"
 
-# Couleurs des 4 boutons réponse
 ANSWER_COLORS = [C_PURPLE, C_ORANGE, C_CYAN, C_VIOLET]
 
-# Catégories Open Trivia DB
 CATEGORIES = {
     "🎲 Général":      9,
     "🎬 Cinéma":       11,
@@ -129,7 +126,6 @@ def get_best_score() -> tuple:
 #  API OPEN TRIVIA DB + TRADUCTION
 # ══════════════════════════════════════════════════════════════════════════════
 def translate_text(text: str) -> str:
-    """Traduit EN→FR via MyMemory (gratuit, sans clé). Silencieux en cas d'erreur."""
     try:
         params = urllib.parse.urlencode({"q": text, "langpair": "en|fr"})
         url = f"https://api.mymemory.translated.net/get?{params}"
@@ -143,10 +139,6 @@ def translate_text(text: str) -> str:
 
 
 def fetch_questions(category_id: int, difficulty: str, amount: int = QUESTIONS_NB):
-    """
-    Retourne (list[dict], None) en cas de succès,
-    ou (None, str_erreur) en cas d'échec.
-    """
     params = urllib.parse.urlencode({
         "amount": amount,
         "category": category_id,
@@ -179,7 +171,6 @@ def fetch_questions(category_id: int, difficulty: str, amount: int = QUESTIONS_N
                 "category": html.unescape(q["category"]),
             })
 
-        # Traduction FR
         translated = []
         for q in questions:
             q["question"] = translate_text(q["question"])
@@ -215,7 +206,7 @@ class GameState:
         self.difficulty_name = "Moyen"
         self.questions     = []
         self.q_index       = 0
-        self.current_player = 1   # 1 ou 2
+        self.current_player = 1
         self.p1_score      = 0
         self.p2_score      = 0
 
@@ -293,20 +284,29 @@ def main(page: ft.Page):
     # ── Configuration de la fenêtre ──────────────────────────────────────────
     page.title        = "QuizMaster – L'Arène du Savoir"
     page.bgcolor      = C_BG
-    # Dimensions fenêtre — ignorées sur Android (mobile gère nativement)
     try:
         page.window.width     = 400
         page.window.height    = 800
         page.window.resizable = True
     except Exception:
         pass
-    page.fonts = {}  # Flet gère les emojis nativement — aucune police spéciale nécessaire
+    page.fonts = {}
     page.theme_mode   = ft.ThemeMode.DARK
     page.padding      = 0
 
     # ── Chemin historique compatible Android ────────────────────────────────
     global HISTORY_FILE
-    HISTORY_FILE = os.path.join(page.app_data_dir, "data", "history.json")
+    try:
+        data_dir = page.app_data_dir
+        if not data_dir:
+            data_dir = os.path.dirname(os.path.abspath(__file__))
+    except Exception:
+        data_dir = os.path.dirname(os.path.abspath(__file__))
+    try:
+        os.makedirs(os.path.join(data_dir, "data"), exist_ok=True)
+    except Exception:
+        pass
+    HISTORY_FILE = os.path.join(data_dir, "data", "history.json")
 
     gs = GameState()
 
@@ -423,7 +423,6 @@ def main(page: ft.Page):
         err_lbl = ft.Text("", color=C_RED, size=13, text_align=ft.TextAlign.CENTER)
 
         def _launch(_):
-            # Validation
             p1 = inp_p1.value.strip() or "Joueur 1"
             p2 = inp_p2.value.strip() or "Joueur 2"
             if gs.mode == "duel" and p1.lower() == p2.lower():
@@ -496,7 +495,6 @@ def main(page: ft.Page):
                          text_align=ft.TextAlign.CENTER)
 
         def _load():
-            # Animation progressive de la barre
             for v in range(0, 85, 3):
                 pb.value = v / 100
                 try:
@@ -558,7 +556,6 @@ def main(page: ft.Page):
     #  ÉCRAN 4 — QUIZ
     # ══════════════════════════════════════════════════════════════════════════
     def build_quiz() -> ft.View:
-        # ── Refs aux widgets dynamiques ──
         lbl_player   = ft.Ref[ft.Text]()
         lbl_progress = ft.Ref[ft.Text]()
         lbl_score    = ft.Ref[ft.Text]()
@@ -568,12 +565,9 @@ def main(page: ft.Page):
         lbl_question = ft.Ref[ft.Text]()
         feedback_txt = ft.Ref[ft.Text]()
 
-        # Boutons réponse (liste pour accès par index)
         _btn_refs = [ft.Ref[ft.ElevatedButton]() for _ in range(4)]
-
         _state = {"answered": False, "timer_event": None, "timer_val": TIMER_TOTAL}
 
-        # ── Rendu d'une question ──────────────────────────────────────────────
         def load_question():
             _state["answered"] = False
             idx = gs.q_index
@@ -601,7 +595,6 @@ def main(page: ft.Page):
                 ref.current.disabled = False
                 ref.current.style.bgcolor = {"": ANSWER_COLORS[i]}
 
-            # Timer
             _stop_timer()
             _state["timer_val"] = TIMER_TOTAL
             lbl_timer.current.value = str(TIMER_TOTAL)
@@ -614,7 +607,6 @@ def main(page: ft.Page):
                 pass
             _start_timer()
 
-        # ── Timer ────────────────────────────────────────────────────────────
         def _start_timer():
             def _tick():
                 while _state["timer_val"] > 0 and not _state["answered"]:
@@ -622,7 +614,6 @@ def main(page: ft.Page):
                     _state["timer_val"] -= 1
                     v = _state["timer_val"]
                     ratio = v / TIMER_TOTAL
-
                     try:
                         lbl_timer.current.value = str(v)
                         timer_bar.current.value = ratio
@@ -634,7 +625,6 @@ def main(page: ft.Page):
                         page.update()
                     except Exception:
                         return
-
                 if not _state["answered"]:
                     _time_up()
 
@@ -643,9 +633,8 @@ def main(page: ft.Page):
             t.start()
 
         def _stop_timer():
-            _state["answered"] = True   # stoppe le thread proprement
+            _state["answered"] = True
 
-        # ── Temps écoulé ─────────────────────────────────────────────────────
         def _time_up():
             _state["answered"] = True
             q = gs.questions[gs.q_index]
@@ -659,7 +648,6 @@ def main(page: ft.Page):
             time.sleep(1.5)
             _next_question()
 
-        # ── Répondre ─────────────────────────────────────────────────────────
         def on_answer(e, btn_idx: int):
             if _state["answered"]:
                 return
@@ -702,14 +690,12 @@ def main(page: ft.Page):
                     ref.current.style.bgcolor = {"": C_GREEN}
                 ref.current.disabled = True
 
-        # ── Question suivante / fin ───────────────────────────────────────────
         def _next_question():
             mode  = gs.mode
             idx   = gs.q_index
             total = len(gs.questions)
 
             if mode == "duel" and gs.current_player == 1:
-                # Passer au joueur 2 pour la MÊME question
                 gs.current_player = 2
                 _show_handoff()
             else:
@@ -731,7 +717,6 @@ def main(page: ft.Page):
             go("result")
 
         def _show_handoff():
-            """Dialog de passage de téléphone en mode Duel."""
             def _close(_):
                 dlg.open = False
                 page.update()
@@ -761,7 +746,6 @@ def main(page: ft.Page):
             )
             page.open(dlg)
 
-        # ── Construction de la vue ────────────────────────────────────────────
         view = ft.View(
             route="/quiz",
             bgcolor=C_BG,
@@ -771,7 +755,6 @@ def main(page: ft.Page):
                     expand=True,
                     spacing=10,
                     controls=[
-                        # Barre haute
                         ft.Row(
                             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                             controls=[
@@ -780,7 +763,6 @@ def main(page: ft.Page):
                                 ft.Text("", ref=lbl_progress, size=13, color=C_MUTED),
                             ],
                         ),
-                        # Timer
                         ft.Row(
                             spacing=10,
                             vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -793,10 +775,8 @@ def main(page: ft.Page):
                                                color=C_GREEN, bgcolor=C_CARD2),
                             ],
                         ),
-                        # Score
                         ft.Text("Score : 0", ref=lbl_score, size=13,
                                 color=C_MUTED, text_align=ft.TextAlign.RIGHT),
-                        # Carte question
                         card(
                             ft.Column(
                                 spacing=6,
@@ -812,7 +792,6 @@ def main(page: ft.Page):
                             ),
                             padding=16,
                         ),
-                        # Boutons réponse
                         *[
                             ft.ElevatedButton(
                                 ref=_btn_refs[i],
@@ -830,7 +809,6 @@ def main(page: ft.Page):
                             )
                             for i in range(4)
                         ],
-                        # Feedback
                         ft.Text("", ref=feedback_txt, size=14,
                                 text_align=ft.TextAlign.CENTER,
                                 weight=ft.FontWeight.BOLD),
@@ -839,7 +817,6 @@ def main(page: ft.Page):
             ],
         )
 
-        # Charger la première question après que la vue est montée
         page.on_view_pop = lambda _: None
         threading.Thread(target=lambda: (time.sleep(0.1), load_question()),
                          daemon=True).start()
@@ -1017,5 +994,5 @@ def main(page: ft.Page):
 if __name__ == "__main__":
     ft.app(target=main)
 else:
-    # Android (serious_python) : module importe, pas execute directement
+    # Android (serious_python) : module importé, pas exécuté directement
     ft.app(target=main)
