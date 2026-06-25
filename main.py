@@ -1015,13 +1015,7 @@ def main(page: ft.Page):
 #  POINT D'ENTRÉE
 # ══════════════════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
-    print("=" * 60)
-    print("  QuizMaster – L'Arène du Savoir")
-    print("  Démarrage en cours...")
-    print("=" * 60)
-    try:
-        ft.app(target=main)
-    except Exception as e:
-        print(f"\n[ERREUR FATALE] {e}")
-        print("Vérifie que Flet est bien installé : pip install flet")
-        sys.exit(1)
+    ft.app(target=main)
+else:
+    # Android (serious_python) : module importe, pas execute directement
+    ft.app(target=main)
