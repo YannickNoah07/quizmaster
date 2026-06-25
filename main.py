@@ -1,22 +1,5 @@
- """
-╔══════════════════════════════════════════════════════════════╗
-║         QuizMaster – L'Arène du Savoir                      ║
-║         Version Flet (Python desktop / mobile web)          ║
-╠══════════════════════════════════════════════════════════════╣
-║  INSTALLATION (une seule fois) :                            ║
-║      pip install flet requests                              ║
-║                                                              ║
-║  LANCER SUR PC (fenêtre bureau) :                           ║
-║      python main.py                                         ║
-║                                                              ║
-║  LANCER EN MODE WEB (test sur téléphone) :                  ║
-║      flet run --web --port 8080 main.py                     ║
-║  → ouvre http://<IP-de-ton-PC>:8080 dans Chrome Android    ║
-║                                                              ║
-║  GÉNÉRER UN EXÉCUTABLE WINDOWS :                            ║
-║      flet build windows                                      ║
-╚══════════════════════════════════════════════════════════════╝
-"""
+# QuizMaster - L'Arene du Savoir
+# Version Flet (Python desktop / mobile)
 
 # ── Vérification des dépendances AVANT tout import ─────────────────────────────
 import sys
