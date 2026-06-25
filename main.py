@@ -64,7 +64,7 @@ import flet as ft
 # ══════════════════════════════════════════════════════════════════════════════
 TIMER_TOTAL   = 10
 QUESTIONS_NB  = 10
-HISTORY_FILE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "history.json")
+HISTORY_FILE  = None  # Sera défini dans main() après avoir accès à page.app_data_dir
 
 # Couleurs (format hex pour Flet)
 C_BG      = "#0D0D1A"
@@ -105,7 +105,7 @@ DIFFICULTIES = {"Facile": "easy", "Moyen": "medium", "Difficile": "hard"}
 # ══════════════════════════════════════════════════════════════════════════════
 def load_history() -> list:
     try:
-        if os.path.exists(HISTORY_FILE):
+        if HISTORY_FILE and os.path.exists(HISTORY_FILE):
             with open(HISTORY_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
     except Exception:
@@ -115,6 +115,8 @@ def load_history() -> list:
 
 def save_game(player: str, score: int, total: int,
               category: str, difficulty: str, mode: str = "Solo"):
+    if not HISTORY_FILE:
+        return
     history = load_history()
     history.insert(0, {
         "player":     player,
@@ -309,6 +311,10 @@ def main(page: ft.Page):
     page.fonts = {}  # Flet gère les emojis nativement — aucune police spéciale nécessaire
     page.theme_mode   = ft.ThemeMode.DARK
     page.padding      = 0
+
+    # ── Chemin historique compatible Android ────────────────────────────────
+    global HISTORY_FILE
+    HISTORY_FILE = os.path.join(page.app_data_dir, "data", "history.json")
 
     gs = GameState()
 
@@ -761,9 +767,7 @@ def main(page: ft.Page):
                 ],
                 actions_alignment=ft.MainAxisAlignment.CENTER,
             )
-            page.dialog = dlg
-            dlg.open = True
-            page.update()
+            page.open(dlg)
 
         # ── Construction de la vue ────────────────────────────────────────────
         view = ft.View(
