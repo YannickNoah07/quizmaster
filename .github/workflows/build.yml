@@ -1,15 +1,3 @@
-# ══════════════════════════════════════════════════════════════
-#  QuizMaster – Build APK via GitHub Actions
-#
-#  RÈGLE IMPORTANTE : ce repo DOIT être PUBLIC
-#  → GitHub Actions est gratuit et illimité sur les repos publics
-#  → Sur un repo privé, tu consommes ton quota de 2000 min/mois
-#
-#  Déclenchement :
-#    - Push sur main
-#    - Bouton manuel : Actions → "Run workflow"
-# ══════════════════════════════════════════════════════════════
-
 name: Build QuizMaster APK
 
 on:
@@ -17,61 +5,37 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-# ── Concurrence : si tu pushs deux fois vite, le vieux build
-#    est annulé automatiquement. Évite les conflits et le gaspillage.
-concurrency:
-  group: build-apk-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  PYTHON_VERSION: "3.11"
-  PYTHONUTF8: "1"
-  FLET_NO_RICH_OUTPUT: "1"
-
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 60    # coupe si blocage (ne dépasse jamais 6h max GitHub)
+    timeout-minutes: 60
 
     steps:
-
-      # ── 1. Code ────────────────────────────────────────────────────────
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ── 2. Python ──────────────────────────────────────────────────────
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: '3.11'
 
-      # ── 3. Java 21 (requis par Android SDK) ───────────────────────────
       - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
-          distribution: "temurin"
-          java-version: "21"
+          distribution: temurin
+          java-version: '21'
 
-      # ── 4. Flet CLI ────────────────────────────────────────────────────
-      #    On installe UNIQUEMENT flet.
-      #    requests n'est PAS listé → urllib natif Python à la place.
-      #    Mettre requests ici ferait échouer flet build apk (pas de wheel Android).
       - name: Install Flet
-        run: |
-          python -m pip install --upgrade pip
-          pip install "flet>=0.21.0"
-          echo "Flet version : $(flet --version)"
+        run: pip install flet
 
-      # ── 5. Git config (évite les warnings credential dans les logs) ────
+      - name: Accept Android licenses
+        run: yes | flutter doctor --android-licenses || true
+
       - name: Git config
         run: |
-          git config --global user.email "ci@quizmaster.com"
-          git config --global user.name "QuizMaster CI"
+          git config --global user.email "ci@github.com"
+          git config --global user.name "GitHub Actions"
 
-      # ── 6. Build APK ───────────────────────────────────────────────────
-      #    Flet télécharge Flutter automatiquement si absent (~300 Mo).
-      #    --verbose pour voir exactement où ça bloque en cas d'erreur.
-      #    --no-rich-output pour des logs lisibles dans GitHub Actions.
       - name: Build APK
         run: |
           echo "y" | flet build apk \
@@ -80,27 +44,12 @@ jobs:
             --build-number ${{ github.run_number }} \
             --build-version "1.0.${{ github.run_number }}"
 
-      # ── 7. Vérification ────────────────────────────────────────────────
       - name: Verify APK
-        run: |
-          echo "=== APKs générés ==="
-          find . -name "*.apk" -type f
-          APK=$(find build/apk -name "*.apk" 2>/dev/null | head -1)
-          if [ -z "$APK" ]; then
-            echo "ERREUR : aucun APK trouvé dans build/apk/"
-            exit 1
-          fi
-          SIZE=$(du -h "$APK" | cut -f1)
-          echo "APK : $APK ($SIZE)"
+        run: find . -name "*.apk" -type f
 
-      # ── 8. Upload artefact ─────────────────────────────────────────────
-      #    retention-days: 7 → économise le quota de stockage (500 Mo gratuit)
-      #    Si tu veux garder plus longtemps, monte à 30.
-      #    IMPORTANT : supprime les vieux artefacts dans Actions si tu rebuilds souvent.
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: QuizMaster-APK-v1.0.${{ github.run_number }}
-          path: build/apk/*.apk
-          if-no-files-found: error
+          path: build/apk/app-release.apk
           retention-days: 7
