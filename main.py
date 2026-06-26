@@ -1,9 +1,10 @@
 # QuizMaster - L'Arène du Savoir
-# Version Flet (Python desktop / mobile)
-# Un jeu de quiz interactif multijoueur avec chronomètre, sons et historique.
+# Version Flet - Optimisée pour Mobile (Android)
+# Un jeu de quiz interactif multijoueur avec chronomètre et historique local.
 
 import flet as ft
 import urllib.request
+import urllib.parse
 import json
 import html
 import time
@@ -138,7 +139,8 @@ def main(page: ft.Page):
     page.title = "QuizMaster - L'Arène du Savoir"
     page.bgcolor = C_BG
     page.padding = 0
-    # Forcer la taille de la fenêtre (uniquement sur Desktop, ignoré en toute sécurité sur Android)
+    
+    # Configuration de la taille (Ignoré en toute sécurité sur Android, actif sur Desktop)
     try:
         if page.window:
             page.window.width = 410
@@ -148,17 +150,17 @@ def main(page: ft.Page):
         pass
     
     # ------------------------------------------
-    # GESTIONNAIRE D'HISTORIQUE LOCAL
+    # GESTIONNAIRE D'HISTORIQUE LOCAL (ANDROID COMPATIBLE)
     # ------------------------------------------
     def get_history_file_path():
         try:
-            # Utilisation de app_data_dir sécurisé sous mobile et desktop
+            # Utilisation de app_data_dir sécurisé sous Android/iOS et Desktop
             data_dir = page.app_data_dir if page.app_data_dir else "."
             history_dir = os.path.join(data_dir, "data")
             os.makedirs(history_dir, exist_ok=True)
             return os.path.join(history_dir, "history.json")
         except Exception:
-            # Fallback en cas de dossier d'application inaccessible en écriture sur mobile
+            # Fallback local
             return "history.json"
 
     def load_history() -> list:
@@ -174,9 +176,8 @@ def main(page: ft.Page):
     def save_to_history(entry: dict):
         try:
             history = load_history()
-            history.insert(0, entry) # Ajoute au début
-            # Limite à 15 entrées dans l'historique
-            history = history[:15]
+            history.insert(0, entry)  # Ajoute au début
+            history = history[:15]     # Limite à 15 entrées
             with open(get_history_file_path(), "w", encoding="utf-8") as f:
                 json.dump(history, f, ensure_ascii=False, indent=2)
         except Exception as e:
@@ -187,12 +188,10 @@ def main(page: ft.Page):
     # ------------------------------------------
     content_area = ft.Container(expand=True)
     
-    # Événement : Retourner à l'accueil
     def go_home(e):
         show_home_screen()
         
     def show_home_screen():
-        # Chargement du meilleur score
         history = load_history()
         best_score = 0
         for h in history:
@@ -202,7 +201,6 @@ def main(page: ft.Page):
             if score_val > best_score:
                 best_score = score_val
 
-        # Composants de l'écran d'accueil
         logo_icon = ft.Icon(name=ft.Icons.SPARKLES, color=C_GOLD, size=64)
         
         best_badge = ft.Container(
@@ -226,7 +224,6 @@ def main(page: ft.Page):
             weight=ft.FontWeight.BLACK,
             color=ft.Colors.WHITE,
             text_align=ft.TextAlign.CENTER,
-            font_family="sans-serif",
         )
         subtitle = ft.Text(
             "L'Arène du Savoir",
@@ -332,7 +329,6 @@ def main(page: ft.Page):
             border_radius=10,
         )
 
-        # Choix de Catégorie
         categories = {
             "Général": "any",
             "Cinéma": "11",
@@ -356,7 +352,6 @@ def main(page: ft.Page):
             border_radius=10,
         )
 
-        # Difficultés
         dropdown_diff = ft.Dropdown(
             label="Niveau de difficulté",
             options=[
@@ -422,7 +417,6 @@ def main(page: ft.Page):
     # CHARGEMENT DES QUESTIONS INTERACTIF
     # ------------------------------------------
     def launch_game():
-        # Écran de chargement
         progress_bar = ft.ProgressBar(width=300, color=C_PRIMARY, bgcolor="#1E293B")
         status_txt = ft.Text("Génération de l'arène de jeu...", color=ft.Colors.WHITE70, size=14, text_align=ft.TextAlign.CENTER)
         
@@ -442,18 +436,16 @@ def main(page: ft.Page):
         )
         page.update()
 
-        # Fetch asynchrone des questions
         def worker():
             status_txt.value = "Interrogation de l'API de questions..."
             page.update()
             questions = fetch_questions(gs.category_id, gs.difficulty)
             
-            # En cas de panne d'API, charger les questions locales
+            # En cas de panne réseau ou pas d'internet sur mobile : questions locales de secours
             if not questions:
-                status_txt.value = "API indisponible, chargement des questions locales..."
+                status_txt.value = "Pas de connexion, chargement des questions locales..."
                 page.update()
                 time.sleep(1.0)
-                # Charger des questions locales simulées
                 questions = simulate_local_questions(gs.category_id)
             
             gs.questions = questions
@@ -465,15 +457,13 @@ def main(page: ft.Page):
             gs.p1_answers = []
             gs.p2_answers = []
             
-            # Début de la partie
             show_question_screen()
 
         threading.Thread(target=worker, daemon=True).start()
 
     def simulate_local_questions(category_id: str):
-        # Questions locales de secours si l'API est inaccessible ou s'il n'y a pas d'internet
+        # Questions de secours hors-ligne pré-traduites
         import random
-        
         local_pool = [
             {
                 "category": "Science",
@@ -561,7 +551,6 @@ def main(page: ft.Page):
             }
         ]
         
-        # Filtrer par catégorie si possible
         cat_map = {
             "any": "any",
             "11": "Cinéma",
@@ -576,7 +565,6 @@ def main(page: ft.Page):
         }
         
         target_cat = cat_map.get(category_id, "any")
-        
         if target_cat != "any":
             filtered = [q for q in local_pool if q["category"].lower() == target_cat.lower()]
             if len(filtered) >= 3:
@@ -592,18 +580,16 @@ def main(page: ft.Page):
     progress_timer = ft.ProgressBar(width=350, value=1.0, color=C_GOLD, bgcolor="#1E293B")
     
     def run_timer():
-        """Fonction exécutée dans un thread pour le compte à rebours de 10s."""
+        """Chronomètre 10 secondes."""
         while gs.timer_running and gs.timer_val > 0:
             time.sleep(1)
             if not gs.timer_running:
                 break
             gs.timer_val -= 1
             
-            # Mise à jour des contrôleurs
             lbl_timer.value = f"{gs.timer_val}s"
             progress_timer.value = gs.timer_val / 10.0
             
-            # Alerte couleur si temps faible
             if gs.timer_val <= 3:
                 lbl_timer.color = C_SECONDARY
                 progress_timer.color = C_SECONDARY
@@ -613,7 +599,6 @@ def main(page: ft.Page):
             page.update()
             
         if gs.timer_running and gs.timer_val == 0:
-            # Fin du temps !
             gs.timer_running = False
             handle_time_up()
 
@@ -621,12 +606,10 @@ def main(page: ft.Page):
         gs.timer_running = False
 
     def handle_time_up():
-        # Action de fin de temps
         process_answer(None)
 
     def show_question_screen():
         if gs.current_question_index >= len(gs.questions):
-            # Plus de questions, aller aux résultats
             stop_timer()
             show_results_screen()
             return
@@ -636,7 +619,6 @@ def main(page: ft.Page):
         gs.timer_running = True
         gs.selected_index = None
         
-        # Titre d'entête (Solo ou Duel)
         header_text = ""
         header_color = ft.Colors.WHITE
         if gs.mode == "solo":
@@ -648,11 +630,9 @@ def main(page: ft.Page):
             header_color = C_PRIMARY if gs.current_player == 1 else C_SECONDARY
             score_text = f"Q{gs.current_question_index + 1} • P1: {gs.p1_score} - P2: {gs.p2_score}"
 
-        # Éléments de l'interface
         lbl_header = ft.Text(header_text, size=15, weight=ft.FontWeight.BOLD, color=header_color)
         lbl_score = ft.Text(score_text, size=13, weight=ft.FontWeight.BOLD, color=C_MUTED)
         
-        # Titre catégorie
         cat_badge = ft.Container(
             content=ft.Text(q["category"].upper(), size=10, weight=ft.FontWeight.BLACK, color=ft.Colors.WHITE),
             bgcolor="#312E81",
@@ -669,7 +649,6 @@ def main(page: ft.Page):
             text_align=ft.TextAlign.CENTER
         )
         
-        # Zone de question
         card_question = ft.Container(
             content=ft.Column(
                 [
@@ -686,7 +665,6 @@ def main(page: ft.Page):
             shadow=ft.BoxShadow(blur_radius=10, color="rgba(0,0,0,0.3)")
         )
 
-        # Boutons d'options de réponses
         option_buttons = []
         for index, option in enumerate(q["options"]):
             btn = ft.Container(
@@ -702,7 +680,7 @@ def main(page: ft.Page):
                         ),
                         ft.VerticalDivider(width=1, color="#334155"),
                         ft.Text(option, size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE)
-                     ],
+                    ],
                     spacing=12,
                 ),
                 bgcolor=C_SURFACE,
@@ -714,7 +692,6 @@ def main(page: ft.Page):
             )
             option_buttons.append(btn)
 
-        # Affichage du feedback de correction
         feedback_area = ft.Container(visible=False, margin=ft.margin.only(top=15))
 
         layout = ft.Column(
@@ -733,20 +710,17 @@ def main(page: ft.Page):
         content_area.content = ft.Container(content=layout, padding=20)
         page.update()
 
-        # Démarrage du thread du chronomètre
         threading.Thread(target=run_timer, daemon=True).start()
 
-        # Gestion de clic réponse
         def process_answer(selected_idx: int | None):
             if not gs.timer_running:
-                return # Déjà répondu ou temps écoulé
+                return
                 
             stop_timer()
             gs.selected_index = selected_idx
             correct_idx = q["correctIndex"]
             is_correct = (selected_idx == correct_idx)
 
-            # Enregistrer les scores
             if gs.mode == "solo":
                 if is_correct:
                     gs.solo_score += 1
@@ -760,9 +734,8 @@ def main(page: ft.Page):
                     if is_correct:
                         gs.p2_score += 1
 
-            # Révélation graphique des boutons de réponses
             for i, btn in enumerate(option_buttons):
-                btn.on_click = None # Désactive les clics ultérieurs
+                btn.on_click = None
                 if i == correct_idx:
                     btn.bgcolor = C_SUCCESS
                     btn.border = ft.border.all(1, "#34D399")
@@ -772,7 +745,6 @@ def main(page: ft.Page):
                 else:
                     btn.opacity = 0.4
             
-            # Zone d'explication
             status_text = ""
             status_color = ft.Colors.WHITE
             if selected_idx is None:
@@ -820,7 +792,6 @@ def main(page: ft.Page):
             gs.current_question_index += 1
             show_question_screen()
         else:
-            # Mode Duel : On alterne Joueur 1 et Joueur 2 pour la même question
             if gs.current_player == 1:
                 gs.current_player = 2
                 show_handoff_screen()
@@ -830,9 +801,8 @@ def main(page: ft.Page):
                 show_question_screen()
 
     def show_handoff_screen():
-        """Affiche un écran invitant à passer le téléphone au Joueur 2."""
         lbl_handoff = ft.Text(
-            f"Passage de tour !",
+            "Passage de tour !",
             size=24,
             weight=ft.FontWeight.BLACK,
             color=C_GOLD,
@@ -881,7 +851,6 @@ def main(page: ft.Page):
     # ÉCRAN DES RÉSULTATS FINAUX
     # ------------------------------------------
     def show_results_screen():
-        # Sauvegarde de la partie dans l'historique local
         entry = {
             "date": time.strftime("%d/%m/%Y • %H:%M"),
             "mode": gs.mode,
@@ -894,9 +863,7 @@ def main(page: ft.Page):
         }
         save_to_history(entry)
 
-        # Design du résultat
         icon_trophy = ft.Icon(ft.Icons.EMOJI_EVENTS, color=C_GOLD, size=64)
-        
         title_res = ft.Text("Résultats de la partie !", size=24, weight=ft.FontWeight.BLACK, color=ft.Colors.WHITE)
         
         card_p1 = None
@@ -921,7 +888,6 @@ def main(page: ft.Page):
                 width=320
             )
         else:
-            # Qui a gagné ?
             winner_text = ""
             if gs.p1_score > gs.p2_score:
                 winner_text = f"🏆 {gs.player1_name} l'emporte !"
@@ -1041,7 +1007,6 @@ def main(page: ft.Page):
                 mode = entry.get("mode", "solo").upper()
                 date = entry.get("date", "")
                 
-                # Format du texte de score
                 score_str = ""
                 if mode == "SOLO":
                     score_str = f"Score : {entry.get('score_p1', 0)} / 10"
