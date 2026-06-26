@@ -1,17 +1,14 @@
-# =========================================================================
-# QuizMaster - L'Arène du Savoir (Version Android & Desktop Sécurisée)
-# Un jeu de quiz interactif multijoueur avec chronomètre, sons visuels et historique.
-# =========================================================================
+# QuizMaster - L'Arène du Savoir
+# Version Flet (Python desktop / mobile)
+# Un jeu de quiz interactif multijoueur avec chronomètre, sons et historique.
 
 import flet as ft
 import urllib.request
-import urllib.parse
 import json
 import html
 import time
 import os
 import threading
-import random
 from typing import List, Dict, Any
 
 # ==========================================
@@ -71,7 +68,8 @@ gs = GameState()
 def fetch_questions(category_id: str, difficulty: str) -> List[Dict[str, Any]]:
     """
     Récupère des questions depuis Open Trivia DB et les traduit en français.
-    Remarque importante pour Android : Nécessite une connexion Internet active.
+    Remarque importante pour Android : Nécessite une connexion Internet active
+    et la permission android.permission.INTERNET déclarée.
     """
     url = f"https://opentdb.com/api.php?amount=10&type=multiple&difficulty={difficulty}"
     if category_id != "any":
@@ -103,6 +101,7 @@ def fetch_questions(category_id: str, difficulty: str) -> List[Dict[str, Any]]:
                         opts_fr.append(translate_text(opt_en))
                         
                     # Insertion de la bonne réponse de manière aléatoire
+                    import random
                     correct_idx = random.randint(0, 3)
                     options = list(opts_fr)
                     options.insert(correct_idx, corr_fr)
@@ -139,8 +138,7 @@ def main(page: ft.Page):
     page.title = "QuizMaster - L'Arène du Savoir"
     page.bgcolor = C_BG
     page.padding = 0
-    
-    # Configuration sécurisée de la fenêtre (Desktop uniquement, ignoré sur Android)
+    # Forcer la taille de la fenêtre (uniquement sur Desktop, ignoré en toute sécurité sur Android)
     try:
         if page.window:
             page.window.width = 410
@@ -176,8 +174,9 @@ def main(page: ft.Page):
     def save_to_history(entry: dict):
         try:
             history = load_history()
-            history.insert(0, entry)  # Ajoute au début
-            history = history[:15]     # Limite à 15 entrées
+            history.insert(0, entry) # Ajoute au début
+            # Limite à 15 entrées dans l'historique
+            history = history[:15]
             with open(get_history_file_path(), "w", encoding="utf-8") as f:
                 json.dump(history, f, ensure_ascii=False, indent=2)
         except Exception as e:
@@ -188,10 +187,12 @@ def main(page: ft.Page):
     # ------------------------------------------
     content_area = ft.Container(expand=True)
     
+    # Événement : Retourner à l'accueil
     def go_home(e):
         show_home_screen()
         
     def show_home_screen():
+        # Chargement du meilleur score
         history = load_history()
         best_score = 0
         for h in history:
@@ -201,6 +202,7 @@ def main(page: ft.Page):
             if score_val > best_score:
                 best_score = score_val
 
+        # Composants de l'écran d'accueil
         logo_icon = ft.Icon(name=ft.Icons.SPARKLES, color=C_GOLD, size=64)
         
         best_badge = ft.Container(
@@ -224,6 +226,7 @@ def main(page: ft.Page):
             weight=ft.FontWeight.BLACK,
             color=ft.Colors.WHITE,
             text_align=ft.TextAlign.CENTER,
+            font_family="sans-serif",
         )
         subtitle = ft.Text(
             "L'Arène du Savoir",
@@ -304,7 +307,7 @@ def main(page: ft.Page):
         page.update()
 
     # ------------------------------------------
-    # ÉCRAN DE CONFIGURATION (SAISIE + OPTIONS)
+    # ÉCRAN DE CONFIGURATION (SAISIE + THÈMES)
     # ------------------------------------------
     def start_config_flow(mode: str):
         gs.mode = mode
@@ -329,6 +332,7 @@ def main(page: ft.Page):
             border_radius=10,
         )
 
+        # Choix de Catégorie
         categories = {
             "Général": "any",
             "Cinéma": "11",
@@ -352,6 +356,7 @@ def main(page: ft.Page):
             border_radius=10,
         )
 
+        # Difficultés
         dropdown_diff = ft.Dropdown(
             label="Niveau de difficulté",
             options=[
@@ -417,6 +422,7 @@ def main(page: ft.Page):
     # CHARGEMENT DES QUESTIONS INTERACTIF
     # ------------------------------------------
     def launch_game():
+        # Écran de chargement
         progress_bar = ft.ProgressBar(width=300, color=C_PRIMARY, bgcolor="#1E293B")
         status_txt = ft.Text("Génération de l'arène de jeu...", color=ft.Colors.WHITE70, size=14, text_align=ft.TextAlign.CENTER)
         
@@ -436,17 +442,18 @@ def main(page: ft.Page):
         )
         page.update()
 
-        # Récupération asynchrone des questions
+        # Fetch asynchrone des questions
         def worker():
             status_txt.value = "Interrogation de l'API de questions..."
             page.update()
             questions = fetch_questions(gs.category_id, gs.difficulty)
             
-            # En cas de panne d'API, charger les questions locales hors-ligne
+            # En cas de panne d'API, charger les questions locales
             if not questions:
-                status_txt.value = "Connexion indisponible, chargement du catalogue local..."
+                status_txt.value = "API indisponible, chargement des questions locales..."
                 page.update()
                 time.sleep(1.0)
+                # Charger des questions locales simulées
                 questions = simulate_local_questions(gs.category_id)
             
             gs.questions = questions
@@ -458,12 +465,15 @@ def main(page: ft.Page):
             gs.p1_answers = []
             gs.p2_answers = []
             
+            # Début de la partie
             show_question_screen()
 
         threading.Thread(target=worker, daemon=True).start()
 
     def simulate_local_questions(category_id: str):
         # Questions locales de secours si l'API est inaccessible ou s'il n'y a pas d'internet
+        import random
+        
         local_pool = [
             {
                 "category": "Science",
@@ -551,6 +561,7 @@ def main(page: ft.Page):
             }
         ]
         
+        # Filtrer par catégorie si possible
         cat_map = {
             "any": "any",
             "11": "Cinéma",
@@ -565,6 +576,7 @@ def main(page: ft.Page):
         }
         
         target_cat = cat_map.get(category_id, "any")
+        
         if target_cat != "any":
             filtered = [q for q in local_pool if q["category"].lower() == target_cat.lower()]
             if len(filtered) >= 3:
@@ -580,16 +592,18 @@ def main(page: ft.Page):
     progress_timer = ft.ProgressBar(width=350, value=1.0, color=C_GOLD, bgcolor="#1E293B")
     
     def run_timer():
-        """Compte à rebours asynchrone de 10 secondes."""
+        """Fonction exécutée dans un thread pour le compte à rebours de 10s."""
         while gs.timer_running and gs.timer_val > 0:
             time.sleep(1)
             if not gs.timer_running:
                 break
             gs.timer_val -= 1
             
+            # Mise à jour des contrôleurs
             lbl_timer.value = f"{gs.timer_val}s"
             progress_timer.value = gs.timer_val / 10.0
             
+            # Alerte couleur si temps faible
             if gs.timer_val <= 3:
                 lbl_timer.color = C_SECONDARY
                 progress_timer.color = C_SECONDARY
@@ -599,6 +613,7 @@ def main(page: ft.Page):
             page.update()
             
         if gs.timer_running and gs.timer_val == 0:
+            # Fin du temps !
             gs.timer_running = False
             handle_time_up()
 
@@ -606,337 +621,391 @@ def main(page: ft.Page):
         gs.timer_running = False
 
     def handle_time_up():
+        # Action de fin de temps
         process_answer(None)
 
     def show_question_screen():
         if gs.current_question_index >= len(gs.questions):
+            # Plus de questions, aller aux résultats
+            stop_timer()
             show_results_screen()
             return
-            
+
         q = gs.questions[gs.current_question_index]
-        gs.selected_index = None
-        
-        # En-tête de question
-        q_num = gs.current_question_index + 1
-        header_text = f"Question {q_num} / {len(gs.questions)}"
-        if gs.mode == "duel":
-            current_player_name = gs.player1_name if gs.current_player == 1 else gs.player2_name
-            player_color = C_PRIMARY if gs.current_player == 1 else C_SECONDARY
-            lbl_turn = ft.Container(
-                content=ft.Text(f"C'est au tour de : {current_player_name}", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
-                bgcolor=player_color,
-                padding=8,
-                border_radius=8,
-                margin=ft.margin.only(bottom=15),
-                alignment=ft.alignment.center
-            )
-        else:
-            lbl_turn = ft.Container()
-
-        lbl_cat = ft.Text(q.get("category", "Général").upper(), size=10, weight=ft.FontWeight.BLACK, color=C_SECONDARY)
-        lbl_q_num = ft.Text(header_text, size=13, weight=ft.FontWeight.BOLD, color=C_MUTED)
-        
-        # Texte de la question
-        lbl_question = ft.Text(
-            q["text"],
-            size=18,
-            weight=ft.FontWeight.BOLD,
-            color=ft.Colors.WHITE,
-            text_align=ft.TextAlign.CENTER,
-        )
-
-        # Boutons de réponse
-        btn_options = []
-        for idx, option in enumerate(q["options"]):
-            btn_options.append(
-                ft.Container(
-                    content=ft.ElevatedButton(
-                        content=ft.Row(
-                            [
-                                ft.Container(
-                                    content=ft.Text(String_Letter(idx), size=11, weight=ft.FontWeight.BLACK, color=ft.Colors.WHITE),
-                                    bgcolor="rgba(0,0,0,0.25)",
-                                    width=24, height=24,
-                                    border_radius=12,
-                                    alignment=ft.alignment.center
-                                ),
-                                ft.Container(width=5),
-                                ft.Text(option, size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
-                            ],
-                            alignment=ft.MainAxisAlignment.START,
-                        ),
-                        style=ft.ButtonStyle(
-                            bgcolor=ANSWER_COLORS[idx],
-                            padding=16,
-                            shape=ft.RoundedRectangleBorder(radius=12),
-                            shadow_color=ANSWER_COLORS[idx],
-                            elevation=4,
-                        ),
-                        on_click=lambda e, opt_idx=idx: select_answer(opt_idx),
-                        expand=True
-                    ),
-                    margin=ft.margin.only(bottom=10),
-                )
-            )
-
-        # Lancer le chronomètre de 10s
         gs.timer_val = 10
         gs.timer_running = True
-        lbl_timer.value = "10s"
-        lbl_timer.color = C_GOLD
-        progress_timer.value = 1.0
-        progress_timer.color = C_GOLD
+        gs.selected_index = None
         
-        content_area.content = ft.Container(
-            content=ft.Column(
-                [
-                    ft.Row([lbl_cat, lbl_q_num], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    ft.Container(height=10),
-                    lbl_turn,
-                    ft.Container(
-                        content=lbl_question,
-                        bgcolor=C_SURFACE,
-                        padding=20,
-                        border_radius=14,
-                        border=ft.border.all(1, "#334155"),
-                        margin=ft.margin.only(bottom=20)
-                    ),
-                    ft.Row([lbl_timer], alignment=ft.MainAxisAlignment.CENTER),
-                    progress_timer,
-                    ft.Container(height=20),
-                    ft.Column(btn_options),
-                ],
-                scroll=ft.ScrollMode.AUTO
-            ),
-            padding=24
-        )
-        page.update()
-        
-        # Démarrage du thread du timer
-        threading.Thread(target=run_timer, daemon=True).start()
-
-    def String_Letter(index: int) -> str:
-        return ["A", "B", "C", "D"][index]
-
-    def select_answer(index: int):
-        stop_timer()
-        process_answer(index)
-
-    def process_answer(selected_index: int or None):
-        q = gs.questions[gs.current_question_index]
-        correct_idx = q["correctIndex"]
-        is_correct = (selected_index == correct_idx)
-
-        # Enregistrement du score
+        # Titre d'entête (Solo ou Duel)
+        header_text = ""
+        header_color = ft.Colors.WHITE
         if gs.mode == "solo":
-            if is_correct:
-                gs.solo_score += 1
+            header_text = f"Question {gs.current_question_index + 1} / 10"
+            score_text = f"Score : {gs.solo_score}"
         else:
-            if gs.current_player == 1:
-                gs.p1_answers.append(selected_index)
-                if is_correct:
-                    gs.p1_score += 1
-            else:
-                gs.p2_answers.append(selected_index)
-                if is_correct:
-                    gs.p2_score += 1
+            player_active_name = gs.player1_name if gs.current_player == 1 else gs.player2_name
+            header_text = f"Tour de {player_active_name}"
+            header_color = C_PRIMARY if gs.current_player == 1 else C_SECONDARY
+            score_text = f"Q{gs.current_question_index + 1} • P1: {gs.p1_score} - P2: {gs.p2_score}"
 
-        # Affichage de la correction (Écran réponse correcte / fausse)
-        status_icon = ft.Icon(
-            name=ft.Icons.CHECK_CIRCLE if is_correct else ft.Icons.CANCEL,
-            color=C_SUCCESS if is_correct else C_SECONDARY,
-            size=56
+        # Éléments de l'interface
+        lbl_header = ft.Text(header_text, size=15, weight=ft.FontWeight.BOLD, color=header_color)
+        lbl_score = ft.Text(score_text, size=13, weight=ft.FontWeight.BOLD, color=C_MUTED)
+        
+        # Titre catégorie
+        cat_badge = ft.Container(
+            content=ft.Text(q["category"].upper(), size=10, weight=ft.FontWeight.BLACK, color=ft.Colors.WHITE),
+            bgcolor="#312E81",
+            border_radius=4,
+            padding=ft.padding.all(4),
+            margin=ft.margin.only(bottom=8)
+        )
+
+        lbl_question = ft.Text(
+            q["text"],
+            size=16,
+            weight=ft.FontWeight.BOLD,
+            color=ft.Colors.WHITE,
+            text_align=ft.TextAlign.CENTER
         )
         
-        status_title = ft.Text(
-            "BONNE RÉPONSE !" if is_correct else ("TEMPS ÉCOULÉ !" if selected_index is None else "MAUVAISE RÉPONSE !"),
-            size=22,
-            weight=ft.FontWeight.BLACK,
-            color=C_SUCCESS if is_correct else C_SECONDARY
-        )
-
-        user_answer_str = q["options"][selected_index] if selected_index is not None else "Aucune réponse"
-        correct_answer_str = q["options"][correct_idx]
-
-        explanation_card = ft.Container(
+        # Zone de question
+        card_question = ft.Container(
             content=ft.Column(
                 [
-                    ft.Text("Correction :", weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE, size=13),
-                    ft.Text(f"Votre réponse : {user_answer_str}", color=C_SECONDARY if not is_correct else C_SUCCESS, size=12),
-                    ft.Text(f"Réponse correcte : {correct_answer_str}", color=C_SUCCESS, size=12, weight=ft.FontWeight.BOLD),
-                    ft.Divider(height=1, color="#334155"),
-                    ft.Text(q.get("explanation", ""), color=ft.Colors.WHITE70, size=11, italic=True),
+                    cat_badge,
+                    lbl_question
                 ],
-                spacing=8
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER
             ),
             bgcolor=C_SURFACE,
-            padding=16,
-            border_radius=12,
+            padding=20,
+            border_radius=16,
             border=ft.border.all(1, "#334155"),
-            margin=ft.margin.only(bottom=24)
+            margin=ft.margin.only(bottom=20),
+            shadow=ft.BoxShadow(blur_radius=10, color="rgba(0,0,0,0.3)")
         )
 
-        # Détermination du bouton suivant
-        if gs.mode == "duel" and gs.current_player == 1:
-            btn_next_text = f"TOUR DE {gs.player2_name.upper()}"
-            next_action = go_to_player2
-        else:
-            is_last = (gs.current_question_index >= len(gs.questions) - 1)
-            btn_next_text = "VOIR LES RÉSULTATS" if is_last else "QUESTION SUIVANTE"
-            next_action = go_to_next_question
+        # Boutons d'options de réponses
+        option_buttons = []
+        for index, option in enumerate(q["options"]):
+            btn = ft.Container(
+                content=ft.Row(
+                    [
+                        ft.Container(
+                            content=ft.Text(chr(65+index), size=12, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+                            bgcolor="#0B0F19",
+                            border_radius=10,
+                            width=24,
+                            height=24,
+                            alignment=ft.alignment.center
+                        ),
+                        ft.VerticalDivider(width=1, color="#334155"),
+                        ft.Text(option, size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE)
+                     ],
+                    spacing=12,
+                ),
+                bgcolor=C_SURFACE,
+                border=ft.border.all(1, "#1E293B"),
+                border_radius=12,
+                padding=14,
+                on_click=lambda e, idx=index: process_answer(idx),
+                animate=ft.Animation(150, "ease")
+            )
+            option_buttons.append(btn)
 
-        btn_next = ft.ElevatedButton(
-            text=btn_next_text,
-            on_click=next_action,
+        # Affichage du feedback de correction
+        feedback_area = ft.Container(visible=False, margin=ft.margin.only(top=15))
+
+        layout = ft.Column(
+            [
+                ft.Row([lbl_header, lbl_score], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                ft.Container(height=5),
+                ft.Row([lbl_timer, progress_timer], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                ft.Container(height=10),
+                card_question,
+                ft.Column(option_buttons, spacing=8),
+                feedback_area
+            ],
+            scroll=ft.ScrollMode.AUTO
+        )
+
+        content_area.content = ft.Container(content=layout, padding=20)
+        page.update()
+
+        # Démarrage du thread du chronomètre
+        threading.Thread(target=run_timer, daemon=True).start()
+
+        # Gestion de clic réponse
+        def process_answer(selected_idx: int | None):
+            if not gs.timer_running:
+                return # Déjà répondu ou temps écoulé
+                
+            stop_timer()
+            gs.selected_index = selected_idx
+            correct_idx = q["correctIndex"]
+            is_correct = (selected_idx == correct_idx)
+
+            # Enregistrer les scores
+            if gs.mode == "solo":
+                if is_correct:
+                    gs.solo_score += 1
+            else:
+                if gs.current_player == 1:
+                    gs.p1_answers.append(selected_idx)
+                    if is_correct:
+                        gs.p1_score += 1
+                else:
+                    gs.p2_answers.append(selected_idx)
+                    if is_correct:
+                        gs.p2_score += 1
+
+            # Révélation graphique des boutons de réponses
+            for i, btn in enumerate(option_buttons):
+                btn.on_click = None # Désactive les clics ultérieurs
+                if i == correct_idx:
+                    btn.bgcolor = C_SUCCESS
+                    btn.border = ft.border.all(1, "#34D399")
+                elif i == selected_idx:
+                    btn.bgcolor = C_SECONDARY
+                    btn.border = ft.border.all(1, "#F87171")
+                else:
+                    btn.opacity = 0.4
+            
+            # Zone d'explication
+            status_text = ""
+            status_color = ft.Colors.WHITE
+            if selected_idx is None:
+                status_text = "⌛ TEMPS ÉCOULÉ !"
+                status_color = C_GOLD
+            elif is_correct:
+                status_text = "✅ EXCELLENTE RÉPONSE !"
+                status_color = C_SUCCESS
+            else:
+                status_text = "❌ MAUVAISE RÉPONSE !"
+                status_color = C_SECONDARY
+
+            feedback_area.content = ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text(status_text, size=14, weight=ft.FontWeight.BLACK, color=status_color),
+                        ft.Text(q["explanation"], size=12, color=ft.Colors.WHITE70),
+                        ft.Container(height=8),
+                        ft.ElevatedButton(
+                            text="CONTINUER",
+                            on_click=lambda e: next_turn_flow(),
+                            style=ft.ButtonStyle(
+                                bgcolor=C_PRIMARY,
+                                color=ft.Colors.WHITE,
+                                shape=ft.RoundedRectangleBorder(radius=8)
+                            ),
+                            width=180
+                        )
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER
+                ),
+                bgcolor="#111827",
+                border=ft.border.all(1, "#1F2937"),
+                border_radius=12,
+                padding=12
+            )
+            feedback_area.visible = True
+            page.update()
+
+    # ------------------------------------------
+    # FLUX DE TRANSITION SOLO / DUEL INTERACTIF
+    # ------------------------------------------
+    def next_turn_flow():
+        if gs.mode == "solo":
+            gs.current_question_index += 1
+            show_question_screen()
+        else:
+            # Mode Duel : On alterne Joueur 1 et Joueur 2 pour la même question
+            if gs.current_player == 1:
+                gs.current_player = 2
+                show_handoff_screen()
+            else:
+                gs.current_player = 1
+                gs.current_question_index += 1
+                show_question_screen()
+
+    def show_handoff_screen():
+        """Affiche un écran invitant à passer le téléphone au Joueur 2."""
+        lbl_handoff = ft.Text(
+            f"Passage de tour !",
+            size=24,
+            weight=ft.FontWeight.BLACK,
+            color=C_GOLD,
+            text_align=ft.TextAlign.CENTER
+        )
+        
+        lbl_desc = ft.Text(
+            f"Passez l'appareil à {gs.player2_name}\n\nC'est maintenant à son tour de répondre à la même question !",
+            size=14,
+            color=ft.Colors.WHITE70,
+            text_align=ft.TextAlign.CENTER,
+            margin=ft.margin.symmetric(0, 10)
+        )
+
+        btn_ready = ft.ElevatedButton(
+            text="JE SUIS PRÊT !",
+            on_click=lambda e: show_question_screen(),
             style=ft.ButtonStyle(
+                bgcolor=C_SECONDARY,
                 color=ft.Colors.WHITE,
-                bgcolor=C_PRIMARY,
-                padding=16,
-                shape=ft.RoundedRectangleBorder(radius=10),
+                padding=18,
+                shape=ft.RoundedRectangleBorder(radius=12)
             ),
-            width=250
+            width=220
         )
 
         content_area.content = ft.Container(
             content=ft.Column(
                 [
-                    ft.Container(height=20),
-                    status_icon,
-                    status_title,
+                    ft.Icon(ft.Icons.MOBILE_SCREEN_SHARE, size=64, color=C_GOLD),
                     ft.Container(height=15),
-                    explanation_card,
-                    ft.Row([btn_next], alignment=ft.MainAxisAlignment.CENTER)
+                    lbl_handoff,
+                    ft.Container(height=10),
+                    lbl_desc,
+                    ft.Container(height=30),
+                    btn_ready
                 ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                scroll=ft.ScrollMode.AUTO
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER
             ),
-            padding=24
+            alignment=ft.alignment.center
         )
         page.update()
-
-    def go_to_player2(e):
-        gs.current_player = 2
-        show_question_screen()
-
-    def go_to_next_question(e):
-        gs.current_player = 1
-        gs.current_question_index += 1
-        show_question_screen()
 
     # ------------------------------------------
     # ÉCRAN DES RÉSULTATS FINAUX
     # ------------------------------------------
     def show_results_screen():
-        # Sauvegarde dans l'historique
-        history_entry = {
-            "date": time.strftime("%d/%m/%Y %H:%M"),
+        # Sauvegarde de la partie dans l'historique local
+        entry = {
+            "date": time.strftime("%d/%m/%Y • %H:%M"),
             "mode": gs.mode,
-            "category": gs.category_id,
+            "category": "Général" if gs.category_id == "any" else gs.category_id,
             "difficulty": gs.difficulty,
             "score_p1": gs.solo_score if gs.mode == "solo" else gs.p1_score,
-            "score_p2": 0 if gs.mode == "solo" else gs.p2_score,
+            "score_p2": gs.p2_score if gs.mode == "duel" else None,
             "p1_name": gs.player1_name,
-            "p2_name": gs.player2_name
+            "p2_name": gs.player2_name if gs.mode == "duel" else ""
         }
-        save_to_history(history_entry)
+        save_to_history(entry)
 
-        # Interface résultats
-        results_layout = []
+        # Design du résultat
+        icon_trophy = ft.Icon(ft.Icons.EMOJI_EVENTS, color=C_GOLD, size=64)
         
-        lbl_res_title = ft.Text("Résultats de la partie", size=24, weight=ft.FontWeight.BLACK, color=ft.Colors.WHITE)
-        results_layout.append(ft.Icon(ft.Icons.EMOJI_EVENTS, color=C_GOLD, size=64))
-        results_layout.append(lbl_res_title)
-        results_layout.append(ft.Container(height=20))
+        title_res = ft.Text("Résultats de la partie !", size=24, weight=ft.FontWeight.BLACK, color=ft.Colors.WHITE)
+        
+        card_p1 = None
+        card_p2 = None
 
         if gs.mode == "solo":
-            score = gs.solo_score
-            percentage = int((score / len(gs.questions)) * 100)
-            
-            # Message personnalisé selon le score
-            if score >= 8:
-                msg = "Exceptionnel ! Vous êtes un véritable expert !"
-                medal_color = C_GOLD
-            elif score >= 5:
-                msg = "Bon travail ! Votre culture générale est solide !"
-                medal_color = C_PRIMARY
-            else:
-                msg = "Continuez à vous entraîner pour gravir les échelons !"
-                medal_color = C_SECONDARY
-
-            results_layout.extend([
-                ft.Text(f"Votre Score : {score} / {len(gs.questions)}", size=20, weight=ft.FontWeight.BOLD, color=medal_color),
-                ft.Text(f"Taux de réussite : {percentage}%", size=14, color=C_MUTED),
-                ft.Container(height=10),
-                ft.Container(
-                    content=ft.Text(msg, size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE, text_align=ft.TextAlign.CENTER),
-                    bgcolor=C_SURFACE,
-                    padding=16,
-                    border_radius=10,
-                    border=ft.border.all(1, "#334155")
+            score_percent = gs.solo_score * 10
+            card_p1 = ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text(gs.player1_name, size=16, weight=ft.FontWeight.BOLD, color=C_PRIMARY),
+                        ft.Text(f"Score final : {gs.solo_score} / 10", size=20, weight=ft.FontWeight.BLACK, color=ft.Colors.WHITE),
+                        ft.Text(f"Taux de réussite : {score_percent}%", size=12, color=C_MUTED)
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER
                 ),
-                ft.Container(height=30)
-            ])
+                bgcolor=C_SURFACE,
+                padding=20,
+                border_radius=14,
+                border=ft.border.all(1, "#334155"),
+                alignment=ft.alignment.center,
+                width=320
+            )
         else:
-            # Mode Duel
-            score_p1 = gs.p1_score
-            score_p2 = gs.p2_score
-            
-            if score_p1 > score_p2:
-                winner_msg = f"🏆 Victoire de {gs.player1_name.upper()} !"
-                winner_color = C_SUCCESS
-            elif score_p2 > score_p1:
-                winner_msg = f"🏆 Victoire de {gs.player2_name.upper()} !"
-                winner_color = C_SUCCESS
+            # Qui a gagné ?
+            winner_text = ""
+            if gs.p1_score > gs.p2_score:
+                winner_text = f"🏆 {gs.player1_name} l'emporte !"
+            elif gs.p2_score > gs.p1_score:
+                winner_text = f"🏆 {gs.player2_name} l'emporte !"
             else:
-                winner_msg = "🤝 Égalité parfaite ! Beau duel !"
-                winner_color = C_GOLD
+                winner_text = "🤝 Match nul parfait !"
 
-            results_layout.extend([
-                ft.Container(
-                    content=ft.Text(winner_msg, size=18, weight=ft.FontWeight.BLACK, color=winner_color, text_align=ft.TextAlign.CENTER),
-                    bgcolor="#111827",
-                    padding=16,
-                    border_radius=10,
-                    border=ft.border.all(1, winner_color),
-                    margin=ft.margin.only(bottom=20)
+            lbl_winner = ft.Text(winner_text, size=18, weight=ft.FontWeight.BLACK, color=C_GOLD, text_align=ft.TextAlign.CENTER)
+
+            card_p1 = ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text(gs.player1_name, size=14, weight=ft.FontWeight.BOLD, color=C_PRIMARY),
+                        ft.Text(f"{gs.p1_score} / 10", size=22, weight=ft.FontWeight.BLACK, color=ft.Colors.WHITE)
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER
                 ),
-                ft.Container(
-                    content=ft.Column(
-                        [
-                            ft.Row(
-                                [
-                                    ft.Text(gs.player1_name, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
-                                    ft.Text(f"{score_p1} / 10", weight=ft.FontWeight.BLACK, color=C_PRIMARY, size=16)
-                                ],
-                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-                            ),
-                            ft.Divider(height=1, color="#334155"),
-                            ft.Row(
-                                [
-                                    ft.Text(gs.player2_name, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
-                                    ft.Text(f"{score_p2} / 10", weight=ft.FontWeight.BLACK, color=C_SECONDARY, size=16)
-                                ],
-                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-                            )
-                        ],
-                        spacing=12
-                    ),
-                    bgcolor=C_SURFACE,
-                    padding=16,
-                    border_radius=12,
-                    border=ft.border.all(1, "#334155")
+                bgcolor=C_SURFACE,
+                padding=16,
+                border_radius=12,
+                border=ft.border.all(1, "#334155"),
+                width=150
+            )
+
+            card_p2 = ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text(gs.player2_name, size=14, weight=ft.FontWeight.BOLD, color=C_SECONDARY),
+                        ft.Text(f"{gs.p2_score} / 10", size=22, weight=ft.FontWeight.BLACK, color=ft.Colors.WHITE)
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER
                 ),
-                ft.Container(height=30)
-            ])
+                bgcolor=C_SURFACE,
+                padding=16,
+                border_radius=12,
+                border=ft.border.all(1, "#334155"),
+                width=150
+            )
 
         btn_retry = ft.ElevatedButton(
-            "REJOUER", 
-            on_click=go_home,
-            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8), bgcolor=C_PRIMARY, color=ft.Colors.WHITE),
-            width=200
+            text="REJOUER",
+            on_click=lambda e: launch_game(),
+            style=ft.ButtonStyle(
+                bgcolor=C_PRIMARY,
+                color=ft.Colors.WHITE,
+                padding=16,
+                shape=ft.RoundedRectangleBorder(radius=10)
+            ),
+            width=280
         )
 
-        results_layout.append(btn_retry)
+        btn_home_back = ft.ElevatedButton(
+            text="RETOUR ACCUEIL",
+            on_click=go_home,
+            style=ft.ButtonStyle(
+                bgcolor="#1E293B",
+                color=ft.Colors.WHITE,
+                padding=16,
+                shape=ft.RoundedRectangleBorder(radius=10)
+            ),
+            width=280
+        )
+
+        results_layout = [
+            ft.Container(height=10),
+            icon_trophy,
+            title_res,
+            ft.Container(height=15)
+        ]
+
+        if gs.mode == "solo":
+            results_layout.append(card_p1)
+        else:
+            results_layout.extend([
+                lbl_winner,
+                ft.Container(height=10),
+                ft.Row([card_p1, card_p2], alignment=ft.MainAxisAlignment.CENTER),
+            ])
+
+        results_layout.extend([
+            ft.Container(height=30),
+            ft.Column([btn_retry, btn_home_back], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10)
+        ])
 
         content_area.content = ft.Container(
             content=ft.Column(results_layout, horizontal_alignment=ft.CrossAxisAlignment.CENTER, scroll=ft.ScrollMode.AUTO),
@@ -972,6 +1041,8 @@ def main(page: ft.Page):
                 mode = entry.get("mode", "solo").upper()
                 date = entry.get("date", "")
                 
+                # Format du texte de score
+                score_str = ""
                 if mode == "SOLO":
                     score_str = f"Score : {entry.get('score_p1', 0)} / 10"
                 else:
