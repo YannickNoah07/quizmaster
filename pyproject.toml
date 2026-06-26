@@ -1,22 +1,31 @@
 [project]
 name = "quizmaster"
 version = "1.0.0"
-description = "QuizMaster – L'Arène du Savoir"
+description = "Quiz Master - L'Arène du Savoir"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "flet>=0.21.0",
+    "flet>=0.23.2",
 ]
 
-[tool.flet]
-org         = "com.quizmaster"
-product     = "QuizMaster"
-company     = "Groupe QuizMaster"
-description = "L'Arène du Savoir – Quiz mobile Python/Flet"
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
 
-[tool.flet.app]
-module = "main"
+[tool.flet]
+# Titre de l'application affiché sur le téléphone
+app_title = "Quiz Master"
+product_name = "Quiz Master"
+
+# Identifiant unique de ton application (doit être unique sur le Play Store)
+package_name = "com.example.quizmaster"
 
 [tool.flet.android]
-permissions = { INTERNET = true, ACCESS_NETWORK_STATE = true }
+# Version minimale d'Android supportée (SDK 24 = Android 7.0 Nougat)
 min_sdk_version = 24
-target_sdk_version = 33
+
+# Permissions requises pour le réseau
+permissions = [
+    "android.permission.INTERNET",
+    "android.permission.ACCESS_NETWORK_STATE"
+]
